@@ -16,6 +16,8 @@ pipeline {
         GIT_AUTHOR_EMAIL = 'jenkins@build.local'
         GIT_COMMITTER_NAME = 'Jenkins Build'
         GIT_COMMITTER_EMAIL = 'jenkins@build.local'
+        // Gradle options for CI
+        GRADLE_OPTS = '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true'
     }
 
     stages {
@@ -46,12 +48,6 @@ pipeline {
             steps {
                 // Run build with all subprojects including compatibility modules. Use --no-daemon for CI stability.
                 bat "${env.GRADLE_WRAPPER} build --no-daemon --stacktrace"
-            }
-            post {
-                always {
-                    // Publish test results if any tests were run
-                    publishTestResults testResultsPattern: '**/build/test-results/test/*.xml'
-                }
             }
         }
 
@@ -141,8 +137,9 @@ pipeline {
 
     post {
         always {
-            // Clean up workspace if needed
+            // Clean up workspace and stop any Gradle daemons
             echo 'Cleaning up...'
+            bat "${env.GRADLE_WRAPPER} --stop || echo 'No Gradle daemons to stop'"
         }
         success {
             echo 'Custom-Crops build succeeded!'
