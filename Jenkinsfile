@@ -85,6 +85,10 @@ pipeline {
             steps {
                 echo 'Packaging the project...'
                 bat "${env.GRADLE_WRAPPER} shadowJar --no-daemon"
+                
+                echo 'Final plugin JAR info:'
+                bat 'dir target\\*.jar'
+                bat 'echo Final JAR location: target\\'
             }
         }
         
@@ -106,25 +110,10 @@ pipeline {
     post {
         always {
             echo 'Cleaning up workspace...'
-            // Archive the built JARs
-            archiveArtifacts artifacts: '**/build/libs/*.jar', 
+            // Archive the final plugin JAR (main artifact)
+            archiveArtifacts artifacts: 'target/*.jar', 
                            fingerprint: true, 
-                           allowEmptyArchive: true
-            
-            // Archive the main plugin JAR specifically
-            archiveArtifacts artifacts: 'plugin/build/libs/*.jar', 
-                           fingerprint: true, 
-                           allowEmptyArchive: true
-            
-            // Archive compatibility module JARs
-            archiveArtifacts artifacts: 'compatibility*/build/libs/*.jar', 
-                           fingerprint: true, 
-                           allowEmptyArchive: true
-            
-            // Archive configuration files for reference
-            archiveArtifacts artifacts: '**/src/main/resources/**/*.yml', 
-                           fingerprint: true, 
-                           allowEmptyArchive: true
+                           allowEmptyArchive: false
             
             // Archive the basic pack if it exists
             archiveArtifacts artifacts: 'CustomCrops_*_Basic_Pack.zip', 
