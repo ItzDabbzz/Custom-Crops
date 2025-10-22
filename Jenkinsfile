@@ -74,39 +74,10 @@ pipeline {
             }
         }
         
-        stage('Build Core') {
+        stage('Build All Modules') {
             steps {
-                echo 'Building core modules...'
-                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace"
-            }
-        }
-
-        stage('Build Compatibility Modules') {
-            parallel {
-                stage('ASP R1 & R2') {
-                    steps {
-                        echo 'Building ASP compatibility modules...'
-                        bat "${env.GRADLE_WRAPPER} :compatibility-asp-r1:build :compatibility-asp-r2:build --no-daemon"
-                    }
-                }
-                stage('ItemsAdder R1 & R2') {
-                    steps {
-                        echo 'Building ItemsAdder compatibility modules...'
-                        bat "${env.GRADLE_WRAPPER} :compatibility-itemsadder-r1:build :compatibility-itemsadder-r2:build --no-daemon"
-                    }
-                }
-                stage('Oraxen R1 & R2') {
-                    steps {
-                        echo 'Building Oraxen compatibility modules...'
-                        bat "${env.GRADLE_WRAPPER} :compatibility-oraxen-r1:build :compatibility-oraxen-r2:build --no-daemon"
-                    }
-                }
-                stage('Other Compatibility') {
-                    steps {
-                        echo 'Building other compatibility modules...'
-                        bat "${env.GRADLE_WRAPPER} :compatibility-craftengine-r1:build :compatibility-crucible-r1:build :compatibility-nexo-r1:build --no-daemon"
-                    }
-                }
+                echo 'Building all modules with proper dependency order...'
+                bat "${env.GRADLE_WRAPPER} build --no-daemon --stacktrace"
             }
         }
         
