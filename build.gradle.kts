@@ -3,15 +3,6 @@ plugins {
     id("com.gradleup.shadow") version "9.0.0-beta11"
 }
 
-// Configure toolchain repositories for auto-download
-plugins.withType<JavaPlugin> {
-    extensions.configure<JavaPluginExtension> {
-        toolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
-        }
-    }
-}
-
 val git : String = versionBanner()
 val builder : String = builder()
 ext["git_version"] = git

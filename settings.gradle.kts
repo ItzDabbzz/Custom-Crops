@@ -12,12 +12,3 @@ include(":compatibility-itemsadder-r1")
 include(":compatibility-itemsadder-r2")
 include(":compatibility-crucible-r1")
 include(":compatibility-craftengine-r1")
-
-// Configure toolchain repositories for auto-download of JDKs
-toolchainManagement {
-    jvm {
-        javaRepositories {
-            repository("foojay")
-        }
-    }
-}

@@ -9,13 +9,15 @@ pipeline {
     environment {
         // Use Gradle wrapper provided in the repo
         GRADLE_WRAPPER = './gradlew'
-        // Set Gradle options for CI
-        GRADLE_OPTS = '-Xmx1024m -Xms512m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true'
+        // Set Gradle options for CI - disable toolchain and use system JDK
+        GRADLE_OPTS = '-Xmx1024m -Xms512m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true -Dorg.gradle.java.installations.auto-detect=false -Dorg.gradle.java.installations.auto-download=false'
         // Set Git user for version banner functionality
         GIT_AUTHOR_NAME = 'Jenkins Build'
         GIT_AUTHOR_EMAIL = 'jenkins@build.local'
         GIT_COMMITTER_NAME = 'Jenkins Build'
         GIT_COMMITTER_EMAIL = 'jenkins@build.local'
+        // Override toolchain to use system JDK
+        ORG_GRADLE_PROJECT_toolchainVersion = '21'
     }
     
     options {
@@ -68,15 +70,14 @@ pipeline {
         stage('Compile') {
             steps {
                 echo 'Compiling the project...'
-                // Override toolchain to use available JDK
-                bat "${env.GRADLE_WRAPPER} compileJava -Porg.gradle.java.installations.auto-detect=false -Porg.gradle.java.installations.paths=${env.JAVA_HOME}"
+                bat "${env.GRADLE_WRAPPER} compileJava"
             }
         }
         
         stage('Build Core') {
             steps {
                 echo 'Building core modules...'
-                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace -Porg.gradle.java.installations.auto-detect=false"
+                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace"
             }
         }
 
