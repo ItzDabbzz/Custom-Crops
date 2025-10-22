@@ -132,8 +132,33 @@ pipeline {
 
     post {
         always {
-            // Clean up workspace and stop any Gradle daemons
-            echo 'Cleaning up...'
+            echo 'Cleaning up workspace...'
+            // Archive the built JARs
+            archiveArtifacts artifacts: '**/build/libs/*.jar', 
+                           fingerprint: true, 
+                           allowEmptyArchive: true
+            
+            // Archive the main plugin JAR specifically
+            archiveArtifacts artifacts: 'plugin/build/libs/*.jar', 
+                           fingerprint: true, 
+                           allowEmptyArchive: true
+            
+            // Archive compatibility module JARs
+            archiveArtifacts artifacts: 'compatibility*/build/libs/*.jar', 
+                           fingerprint: true, 
+                           allowEmptyArchive: true
+            
+            // Archive configuration files for reference
+            archiveArtifacts artifacts: '**/src/main/resources/**/*.yml', 
+                           fingerprint: true, 
+                           allowEmptyArchive: true
+            
+            // Archive the basic pack if it exists
+            archiveArtifacts artifacts: 'CustomCrops_*_Basic_Pack.zip', 
+                           fingerprint: false, 
+                           allowEmptyArchive: true
+            
+            // Stop any Gradle daemons
             script {
                 try {
                     bat "${env.GRADLE_WRAPPER} --stop"
@@ -142,19 +167,28 @@ pipeline {
                 }
             }
         }
+        
         success {
-            echo 'Custom-Crops build succeeded!'
-            // Add success notifications here (Slack, Discord, etc.)
+            echo 'Build completed successfully!'
+            script {
+                if (env.BRANCH_NAME == 'master' || env.BRANCH_NAME == 'main') {
+                    echo 'Master/Main branch build succeeded - artifacts are ready for deployment'
+                }
+            }
         }
+        
         failure {
-            echo 'Custom-Crops build failed!'
-            // Add failure notifications here
+            echo 'Build failed!'
+            // You can add notification steps here (email, Slack, etc.)
         }
+        
         unstable {
-            echo 'Custom-Crops build is unstable!'
+            echo 'Build completed with test failures'
         }
-        changed {
-            echo 'Custom-Crops build status changed!'
+        
+        cleanup {
+            // Clean up workspace if needed
+            deleteDir()
         }
     }
 }
