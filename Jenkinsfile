@@ -68,14 +68,15 @@ pipeline {
         stage('Compile') {
             steps {
                 echo 'Compiling the project...'
-                bat "${env.GRADLE_WRAPPER} compileJava"
+                // Override toolchain to use available JDK
+                bat "${env.GRADLE_WRAPPER} compileJava -Porg.gradle.java.installations.auto-detect=false -Porg.gradle.java.installations.paths=${env.JAVA_HOME}"
             }
         }
         
         stage('Build Core') {
             steps {
                 echo 'Building core modules...'
-                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace"
+                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace -Porg.gradle.java.installations.auto-detect=false"
             }
         }
 
