@@ -1,60 +1,81 @@
-// Declarative Jenkins pipeline for building Custom-Crops using the Gradle wrapper
 pipeline {
     agent any
-
+    
     tools {
-        // Assumes Jenkins has a JDK installation named 'jdk21' configured in Global Tool Configuration
-        // Adjust to 'jdk17' or 'jdk11' based on your Jenkins setup and project requirements
-        jdk 'jdk21'
+        // Make sure Jenkins has JDK configured with this name
+        jdk 'jdk21'        // Adjust this to match your Jenkins JDK 21 installation name
     }
-
+    
     environment {
         // Use Gradle wrapper provided in the repo
         GRADLE_WRAPPER = './gradlew'
+        // Set Gradle options for CI
+        GRADLE_OPTS = '-Xmx1024m -Xms512m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true'
         // Set Git user for version banner functionality
         GIT_AUTHOR_NAME = 'Jenkins Build'
         GIT_AUTHOR_EMAIL = 'jenkins@build.local'
         GIT_COMMITTER_NAME = 'Jenkins Build'
         GIT_COMMITTER_EMAIL = 'jenkins@build.local'
-        // Gradle options for CI
-        GRADLE_OPTS = '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true'
+    }
+    
+    options {
+        // Keep builds for 30 days
+        buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '50'))
+        // Timeout after 45 minutes (longer for compatibility modules)
+        timeout(time: 45, unit: 'MINUTES')
+        // Add timestamps to console output
+        timestamps()
+    }
+    
+    triggers {
+        // Poll SCM every 5 minutes for changes (adjust as needed)
+        pollSCM('H/5 * * * *')
     }
 
     stages {
         stage('Checkout') {
             steps {
+                echo 'Checking out source code...'
                 checkout scm
                 // Ensure git is configured for the version banner functions
                 bat 'git config user.name "Jenkins Build" || echo "Git config already set"'
                 bat 'git config user.email "jenkins@build.local" || echo "Git config already set"'
             }
         }
-
-        stage('Validate') {
+        
+        stage('Build Info') {
             steps {
-                // Validate the Gradle wrapper and project structure
-                bat "${env.GRADLE_WRAPPER} --version"
-                bat "${env.GRADLE_WRAPPER} projects"
+                script {
+                    echo "Building branch: ${env.BRANCH_NAME}"
+                    echo "Build number: ${env.BUILD_NUMBER}"
+                    echo "Java version check:"
+                    bat 'java -version'
+                    echo "Gradle version check:"
+                    bat "${env.GRADLE_WRAPPER} --version"
+                    echo "Project structure:"
+                    bat "${env.GRADLE_WRAPPER} projects"
+                }
             }
         }
-
+        
         stage('Clean') {
             steps {
+                echo 'Cleaning previous builds...'
                 bat "${env.GRADLE_WRAPPER} clean"
             }
         }
-
-        stage('Build') {
+        
+        stage('Compile') {
             steps {
-                // Run build with all subprojects including compatibility modules. Use --no-daemon for CI stability.
-                bat "${env.GRADLE_WRAPPER} build --no-daemon --stacktrace"
+                echo 'Compiling the project...'
+                bat "${env.GRADLE_WRAPPER} compileJava"
             }
         }
-
-        stage('Shadow JAR') {
+        
+        stage('Build Core') {
             steps {
-                // Build the shadow JAR which is typically the main deliverable
-                bat "${env.GRADLE_WRAPPER} shadowJar --no-daemon"
+                echo 'Building core modules...'
+                bat "${env.GRADLE_WRAPPER} :api:build :plugin:build --no-daemon --stacktrace"
             }
         }
 
@@ -62,75 +83,49 @@ pipeline {
             parallel {
                 stage('ASP R1 & R2') {
                     steps {
+                        echo 'Building ASP compatibility modules...'
                         bat "${env.GRADLE_WRAPPER} :compatibility-asp-r1:build :compatibility-asp-r2:build --no-daemon"
                     }
                 }
                 stage('ItemsAdder R1 & R2') {
                     steps {
+                        echo 'Building ItemsAdder compatibility modules...'
                         bat "${env.GRADLE_WRAPPER} :compatibility-itemsadder-r1:build :compatibility-itemsadder-r2:build --no-daemon"
                     }
                 }
                 stage('Oraxen R1 & R2') {
                     steps {
+                        echo 'Building Oraxen compatibility modules...'
                         bat "${env.GRADLE_WRAPPER} :compatibility-oraxen-r1:build :compatibility-oraxen-r2:build --no-daemon"
                     }
                 }
                 stage('Other Compatibility') {
                     steps {
+                        echo 'Building other compatibility modules...'
                         bat "${env.GRADLE_WRAPPER} :compatibility-craftengine-r1:build :compatibility-crucible-r1:build :compatibility-nexo-r1:build --no-daemon"
                     }
                 }
             }
         }
-
-        stage('Archive Artifacts') {
+        
+        stage('Package') {
             steps {
-                // Archive all JAR files and important build artifacts
-                archiveArtifacts artifacts: '**/build/libs/*.jar', fingerprint: true, allowEmptyArchive: true
-                
-                // Archive the main plugin JAR specifically
-                archiveArtifacts artifacts: 'plugin/build/libs/*.jar', fingerprint: true, allowEmptyArchive: true
-                
-                // Archive compatibility module JARs
-                archiveArtifacts artifacts: 'compatibility*/build/libs/*.jar', fingerprint: true, allowEmptyArchive: true
-                
-                // Archive configuration files and resources
-                archiveArtifacts artifacts: '**/src/main/resources/**/*.yml', fingerprint: false, allowEmptyArchive: true
-                archiveArtifacts artifacts: '**/src/main/resources/**/*.properties', fingerprint: false, allowEmptyArchive: true
-                
-                // Archive the basic pack if it exists
-                archiveArtifacts artifacts: 'CustomCrops_*_Basic_Pack.zip', fingerprint: false, allowEmptyArchive: true
+                echo 'Packaging the project...'
+                bat "${env.GRADLE_WRAPPER} shadowJar --no-daemon"
             }
         }
-
-        stage('Package Distribution') {
-            steps {
-                // Create a distribution package with main plugin and compatibility modules
-                script {
-                    bat '''
-                        mkdir -p dist
-                        copy "plugin\\build\\libs\\*.jar" "dist\\" 2>nul || echo "No plugin JAR found"
-                        copy "compatibility*\\build\\libs\\*.jar" "dist\\" 2>nul || echo "No compatibility JARs found"
-                        copy "CustomCrops_*_Basic_Pack.zip" "dist\\" 2>nul || echo "No basic pack found"
-                    '''
-                }
-                archiveArtifacts artifacts: 'dist/**', fingerprint: true, allowEmptyArchive: true
-            }
-        }
-
-        stage('Publish') {
+        
+        stage('Install') {
             when {
-                // Only publish on main/master branch or release branches
                 anyOf {
-                    branch 'main'
                     branch 'master'
-                    branch 'release/*'
+                    branch 'main'
+                    branch 'develop'
                 }
             }
             steps {
-                echo 'Publishing artifacts...'
-                // Add your publish steps here (e.g., Maven, Nexus, etc.)
-                // Example: bat "${env.GRADLE_WRAPPER} publish"
+                echo 'Installing to local repository...'
+                bat "${env.GRADLE_WRAPPER} publishToMavenLocal"
             }
         }
     }
